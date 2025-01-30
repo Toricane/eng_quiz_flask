@@ -1,0 +1,268 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Vocabulary Quiz</title>
+        <link
+            href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css"
+            rel="stylesheet"
+        />
+        <style>
+            .fade-enter {
+                opacity: 0;
+            }
+            .fade-enter-active {
+                opacity: 1;
+                transition: opacity 300ms ease-in;
+            }
+            .fade-exit {
+                opacity: 1;
+            }
+            .fade-exit-active {
+                opacity: 0;
+                transition: opacity 300ms ease-in;
+            }
+        </style>
+    </head>
+    <body class="bg-gray-100 min-h-screen">
+        <div class="container mx-auto px-4 py-8">
+            <h1 class="text-4xl font-bold text-center mb-8">Vocabulary Quiz</h1>
+
+            <!-- Quiz Selection -->
+            <div id="quiz-selection" class="max-w-md mx-auto">
+                <h2 class="text-2xl font-semibold mb-4">Select Quiz Type</h2>
+                <div class="space-y-4">
+                    <button
+                        onclick="startQuiz('spelling')"
+                        class="w-full bg-blue-500 text-white py-3 px-6 rounded-lg hover:bg-blue-600 transition"
+                    >
+                        Spelling Quiz
+                    </button>
+                    <button
+                        onclick="startQuiz('definition')"
+                        class="w-full bg-green-500 text-white py-3 px-6 rounded-lg hover:bg-green-600 transition"
+                    >
+                        Definition Quiz
+                    </button>
+                    <button
+                        onclick="startQuiz('sentence')"
+                        class="w-full bg-purple-500 text-white py-3 px-6 rounded-lg hover:bg-purple-600 transition"
+                    >
+                        Sentence Creation Quiz
+                    </button>
+                </div>
+            </div>
+
+            <!-- Quiz Interface -->
+            <div id="quiz-interface" class="max-w-2xl mx-auto hidden">
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 id="quiz-type" class="text-2xl font-semibold"></h2>
+                        <div class="text-lg">
+                            Score: <span id="score">0</span>/<span id="total"
+                                >0</span
+                            >
+                        </div>
+                    </div>
+
+                    <div id="question-container" class="mb-6">
+                        <p id="question" class="text-xl mb-2"></p>
+                        <p id="instructions" class="text-gray-600 mb-4"></p>
+                    </div>
+
+                    <div class="mb-6">
+                        <input
+                            type="text"
+                            id="answer-input"
+                            class="w-full border-2 border-gray-300 rounded-lg p-3 focus:outline-none focus:border-blue-500"
+                            placeholder="Your answer..."
+                        />
+                    </div>
+
+                    <div class="flex space-x-4">
+                        <button
+                            onclick="submitAnswer()"
+                            class="bg-blue-500 text-white py-2 px-6 rounded-lg hover:bg-blue-600 transition"
+                        >
+                            Submit
+                        </button>
+                        <button
+                            onclick="nextQuestion()"
+                            class="bg-gray-500 text-white py-2 px-6 rounded-lg hover:bg-gray-600 transition"
+                        >
+                            Skip
+                        </button>
+                        <button
+                            onclick="endQuiz()"
+                            class="bg-red-500 text-white py-2 px-6 rounded-lg hover:bg-red-600 transition"
+                        >
+                            End Quiz
+                        </button>
+                    </div>
+
+                    <div id="feedback" class="mt-6 p-4 rounded-lg hidden">
+                        <p id="feedback-text" class="text-lg"></p>
+                        <p id="correct-answer" class="text-lg mt-2"></p>
+                        <p id="example-sentence" class="text-lg mt-2"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <script>
+            let currentQuestion = null;
+            let score = 0;
+            let totalQuestions = 0;
+            let currentQuizType = "";
+
+            function startQuiz(quizType) {
+                currentQuizType = quizType;
+                document
+                    .getElementById("quiz-selection")
+                    .classList.add("hidden");
+                document
+                    .getElementById("quiz-interface")
+                    .classList.remove("hidden");
+                document.getElementById("quiz-type").textContent = `${
+                    quizType.charAt(0).toUpperCase() + quizType.slice(1)
+                } Quiz`;
+
+                score = 0;
+                totalQuestions = 0;
+                updateScore();
+                nextQuestion();
+
+                const instructions = document.getElementById("instructions");
+                if (quizType === "sentence") {
+                    instructions.textContent =
+                        "Create a sentence that clearly demonstrates the meaning of the word. Use enough context so someone unfamiliar with the word could understand its meaning.";
+                } else if (quizType === "spelling") {
+                    instructions.textContent =
+                        "Type the correct spelling of the word based on its definition.";
+                } else {
+                    instructions.textContent =
+                        "Provide the definition for this word.";
+                }
+            }
+
+            function updateScore() {
+                document.getElementById("score").textContent = score;
+                document.getElementById("total").textContent = totalQuestions;
+            }
+
+            async function nextQuestion() {
+                const response = await fetch(
+                    `/get_question/${currentQuizType}`
+                );
+                currentQuestion = await response.json();
+
+                document.getElementById("question").textContent =
+                    currentQuestion.question;
+                document.getElementById("answer-input").value = "";
+                document.getElementById("feedback").classList.add("hidden");
+                document.getElementById("answer-input").focus();
+            }
+
+            async function submitAnswer() {
+                const userAnswer = document
+                    .getElementById("answer-input")
+                    .value.trim();
+                if (!userAnswer) return;
+
+                totalQuestions++;
+                const response = await fetch("/check_answer", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        type: currentQuizType,
+                        question: currentQuestion.question,
+                        answer: userAnswer,
+                        correct_answer: currentQuestion.answer,
+                    }),
+                });
+
+                const result = await response.json();
+                const feedback = document.getElementById("feedback");
+                const feedbackText = document.getElementById("feedback-text");
+                const correctAnswer = document.getElementById("correct-answer");
+                const exampleSentence =
+                    document.getElementById("example-sentence");
+
+                feedback.classList.remove(
+                    "hidden",
+                    "bg-green-100",
+                    "bg-red-100"
+                );
+                feedbackText.classList.remove("text-green-700", "text-red-700");
+
+                if (result.correct) {
+                    score++;
+                    feedback.classList.add("bg-green-100");
+                    feedbackText.classList.add("text-green-700");
+                    feedbackText.textContent = "Correct!";
+                    correctAnswer.textContent = "";
+                    exampleSentence.textContent = "";
+                } else {
+                    feedback.classList.add("bg-red-100");
+                    feedbackText.classList.add("text-red-700");
+                    feedbackText.textContent = "Incorrect.";
+
+                    if (currentQuizType === "sentence") {
+                        correctAnswer.textContent =
+                            "Your sentence needs more context to demonstrate the word's meaning.";
+                        exampleSentence.textContent = `Example of proper usage: ${result.example}`;
+                    } else if (currentQuizType === "spelling") {
+                        correctAnswer.textContent = `The correct word is: ${result.correct_answer}`;
+                        exampleSentence.textContent = `Your answer was ${result.similarity} similar`;
+                    } else {
+                        correctAnswer.textContent = `The correct definition is: ${result.correct_answer}`;
+                    }
+                }
+
+                feedback.classList.remove("hidden");
+                updateScore();
+
+                // Add event listener for Enter key to move to next question
+                const handleKeyPress = (event) => {
+                    if (event.key === "Enter") {
+                        nextQuestion();
+                        document.removeEventListener(
+                            "keypress",
+                            handleKeyPress
+                        );
+                    }
+                };
+                document.addEventListener("keypress", handleKeyPress);
+            }
+
+            function endQuiz() {
+                const percentage =
+                    totalQuestions > 0
+                        ? ((score / totalQuestions) * 100).toFixed(1)
+                        : 0;
+                alert(
+                    `Quiz ended!\nFinal Score: ${score}/${totalQuestions} (${percentage}%)`
+                );
+                document
+                    .getElementById("quiz-interface")
+                    .classList.add("hidden");
+                document
+                    .getElementById("quiz-selection")
+                    .classList.remove("hidden");
+            }
+
+            // Add event listener for Enter key on answer input
+            document
+                .getElementById("answer-input")
+                .addEventListener("keypress", function (event) {
+                    if (event.key === "Enter") {
+                        submitAnswer();
+                    }
+                });
+        </script>
+    </body>
+</html>
